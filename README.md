@@ -12,4 +12,4 @@ sudo make install
 
 It will overwrite your default debian SDL libraries, which are broken on the Pi anyway.
 
-Thanks to exobuzz on the RaspberryPi.org forums for making me realize how bad my previous code was!
+Thanks to exobuzz on the RaspberryPi.org forums for making me realize how bad my previous code was, and his configure.in modifications which I took from his published package!

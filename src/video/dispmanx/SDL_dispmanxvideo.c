@@ -606,14 +606,14 @@ static void DISPMANX_VideoQuit(_THIS)
 	/* If _dispvars is NULL, it means game inits dispmanx itself 
 	 * for EGL/GLES or something like that, so we don't have to free anything here.*/
 	if (_dispvars != NULL) {	
+		/* Free the dispmanx surfaces */
+		Dispmanx_SurfaceFree(_dispvars->main_surface);
+		Dispmanx_SurfaceFree(_dispvars->back_surface);
+
 		/* Destroy surface management mutexes and conditions. */
 		pthread_mutex_destroy(&_dispvars->pending_mutex);
 		pthread_mutex_destroy(&_dispvars->vsync_cond_mutex);
 		pthread_cond_destroy(&_dispvars->vsync_condition);
-		
-		/* Free the dispmanx surfaces */
-		Dispmanx_SurfaceFree(_dispvars->main_surface);
-		Dispmanx_SurfaceFree(_dispvars->back_surface);
 
 		/* Close display and deinitialize dispmanx. */
 		vc_dispmanx_display_close(_dispvars->display);

@@ -132,8 +132,8 @@ static void DISPMANX_VideoQuit(_THIS);
 /* Dispmanx internal surface class functions */
 static struct dispmanx_page *DISPMANX_SurfaceGetFreePage(struct dispmanx_surface *surface);
 static void DISPMANX_VsyncCB(DISPMANX_UPDATE_HANDLE_T u, void *data);
-static void DISPMANX_SurfaceSetup(int width, int height, int bpp, float alpha, float aspect, 
-	int numpages, int layer, struct dispmanx_surface *surface);
+static void DISPMANX_SurfaceSetup(int width, int height, int visible_pitch, int bpp, int alpha, float aspect, 
+	int numpages, int layer, struct dispmanx_surface **surface);
 void DISPMANX_SurfaceUpdate(const void *frame, struct dispmanx_surface *surface);
 static void Dispmanx_SurfaceFree(struct dispmanx_surface *surface);
 static void DISPMANX_BlankConsole();
@@ -240,12 +240,19 @@ static void DISPMANX_VsyncCB(DISPMANX_UPDATE_HANDLE_T u, void *data)
    pthread_mutex_unlock(&_dispvars->pending_mutex);
 }
 
-static void DISPMANX_SurfaceSetup(int width, int height, int bpp, 
-	float alpha, float aspect, int numpages, int layer,
-	struct dispmanx_surface *surface)
+static void DISPMANX_SurfaceSetup(int width, 
+	int height, 
+	int visible_pitch,
+	int bpp, 
+	int alpha, 
+	float aspect, 
+	int numpages, 
+	int layer,
+	struct dispmanx_surface **sp)
 {
    int i, dst_width, dst_height, dst_xpos, dst_ypos;
-
+   *sp = calloc(1, sizeof(struct dispmanx_surface));
+   struct dispmanx_surface *surface = *sp;
    /* Internal frame dimensions. Pitch is total pitch including info 
     * between scanlines */
    surface->width = width;
@@ -254,7 +261,7 @@ static void DISPMANX_SurfaceSetup(int width, int height, int bpp,
    surface->aspect = aspect; 
    surface->layer = layer;
    surface->bpp = bpp;
-
+   surface->pitch = visible_pitch;
    surface->numpages = numpages; 
    surface->current_page = NULL; 
 
@@ -263,7 +270,9 @@ static void DISPMANX_SurfaceSetup(int width, int height, int bpp,
    surface->alpha.opacity = alpha;
    surface->alpha.mask = 0;
 
-   surface->pitch = width * bpp / 8;
+   /* The "visible" width obtained from the core pitch. We blit based on 
+    * the "visible" width, for cores with things between scanlines. */
+   int visible_width = visible_pitch / (bpp / 8);
 
    /* Set pixformat depending on bpp */
    switch (bpp){
@@ -307,7 +316,7 @@ static void DISPMANX_SurfaceSetup(int width, int height, int bpp,
 
    for (i = 0; i < surface->numpages; i++) {
       surface->pages[i].resource = vc_dispmanx_resource_create(surface->pixformat, 
-	    width, height, &(_dispvars->vc_image_ptr));
+	    visible_width, height, &(_dispvars->vc_image_ptr));
    }
    /* Add element. */
    _dispvars->update = vc_dispmanx_update_start(0);
@@ -362,8 +371,7 @@ static void DISPMANX_BlankConsole ()
    uint16_t image[2] = {0x0000, 0x0000};
    float aspect = (float)_dispvars->dispmanx_width / (float)_dispvars->dispmanx_height;   
 
-   _dispvars->back_surface = calloc(1, sizeof(struct dispmanx_surface));
-   DISPMANX_SurfaceSetup(2, 2, 16, 255, aspect, 1, -1, _dispvars->back_surface);
+   DISPMANX_SurfaceSetup(2, 2, 4, 16, 255, aspect, 1, -1, &_dispvars->back_surface);
    DISPMANX_SurfaceUpdate(image, _dispvars->back_surface);
 }
 
@@ -541,9 +549,8 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 		Dispmanx_SurfaceFree(_dispvars->main_surface);
 	}
 		
-	_dispvars->main_surface = calloc(1, sizeof(struct dispmanx_surface));
-	DISPMANX_SurfaceSetup(width, height, bpp, 255, aspect, 3, 0,
-	   _dispvars->main_surface);
+	DISPMANX_SurfaceSetup(width, height, pitch, bpp, 255, aspect, 3, 0,
+	   &_dispvars->main_surface);
 
 	/* IMPORTANT: We can't do this on the Init function or the cursor init code
 	 * will try to draw the cursor before the surface is ready! */	

@@ -534,6 +534,8 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 	current->h = height;
 	current->pitch  = pitch;
 	current->pixels = _dispvars->pixmem;
+	/* We need to do this so hardware palette gets adjusted for 8bpp games. */
+	current->flags |= SDL_HWPALETTE;
 
         if ( _dispvars->main_surface != NULL) {
 		Dispmanx_SurfaceFree(_dispvars->main_surface);

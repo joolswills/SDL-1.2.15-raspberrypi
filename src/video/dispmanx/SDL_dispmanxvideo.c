@@ -44,82 +44,72 @@
 
 struct dispmanx_page
 {
-   /* Each page contains it's own resource handler 
-    * instead of pointing to in by page number */
-   DISPMANX_RESOURCE_HANDLE_T resource;
-   bool used;
-   /* Each page has it's own mutex for
-    * isolating it's used flag access. */
-   pthread_mutex_t page_used_mutex;
+	/* Each page contains it's own resource handler 
+	 * instead of pointing to in by page number */
+	DISPMANX_RESOURCE_HANDLE_T resource;
+	bool used;
+	/* Each page has it's own mutex for
+	 * isolating it's used flag access. */
+	pthread_mutex_t page_used_mutex;
 
-   /* This field will allow us to access the 
-    * surface the page belongs to, for the vsync cb. */
-   struct dispmanx_surface *surface;	
+	/* This field will allow us to access the 
+	 * surface the page belongs to, for the vsync cb. */
+	struct dispmanx_surface *surface;	
 };
 
 struct dispmanx_surface
 {
-   /* main surface has 3 pages, menu surface has 1 */
-   unsigned int numpages;
-   struct dispmanx_page *pages;
-   /* The page that's currently on screen for this surface */
-   struct dispmanx_page *current_page;
-   unsigned int bpp;   
+	/* main surface has 3 pages, menu surface has 1 */
+	unsigned int numpages;
+	struct dispmanx_page *pages;
+	/* The page that's currently on screen for this surface */
+	struct dispmanx_page *current_page;
 
-   VC_RECT_T src_rect;
-   VC_RECT_T dst_rect;
-   VC_RECT_T bmp_rect;
-   
-   /* Each surface has it's own element, and the resources are contained one in each page */
-   DISPMANX_ELEMENT_HANDLE_T element;
-   VC_DISPMANX_ALPHA_T alpha;    
-   VC_IMAGE_TYPE_T pixformat;
+	VC_RECT_T src_rect;
+	VC_RECT_T dst_rect;
+	VC_RECT_T bmp_rect;
 
-   /* Surfaces with a higher layer will be on top of the ones with lower. Default is 0. */
-   int layer;
+	/* Each surface has it's own element, and the resources are contained one in each page */
+	DISPMANX_ELEMENT_HANDLE_T element;
+	VC_DISPMANX_ALPHA_T alpha;    
+	VC_IMAGE_TYPE_T pixformat;
 
-   /* Internal frame dimensions */
-   int width;
-   int height;
-   int pitch;
-
-   /* External aspect for scaling */
-   float aspect;
+	/* Internal frame dimensions that we need in the blitting function. */
+	int pitch;
 };
 
 struct dispmanx_video
 {
-   uint64_t frame_count;
-   DISPMANX_DISPLAY_HANDLE_T display;
-   DISPMANX_UPDATE_HANDLE_T update;
-   uint32_t vc_image_ptr;
+	uint64_t frame_count;
+	DISPMANX_DISPLAY_HANDLE_T display;
+	DISPMANX_UPDATE_HANDLE_T update;
+	uint32_t vc_image_ptr;
 
-   /* We abstract three "surfaces": main surface, menu surface and black back surface. */
-   struct dispmanx_surface *main_surface;
-   struct dispmanx_surface *back_surface;
-   struct dispmanx_surface *scanlines_surface;
+	/* We abstract three "surfaces": main surface, menu surface and black back surface. */
+	struct dispmanx_surface *main_surface;
+	struct dispmanx_surface *back_surface;
 
-   /* For console blanking */
-   int fb_fd;
-   uint8_t *fb_addr;
-   unsigned int screensize;
-   uint8_t *screen_bck;
+	/* For console blanking */
+	int fb_fd;
+	uint8_t *fb_addr;
+	unsigned int screensize;
+	uint8_t *screen_bck;
 
-   /* Total dispmanx video dimensions. Not counting overscan settings. */
-   unsigned int dispmanx_width;
-   unsigned int dispmanx_height;
+	/* Total dispmanx video dimensions. Not counting overscan settings. */
+	unsigned int dispmanx_width;
+	unsigned int dispmanx_height;
 
-   /* For threading */
-   pthread_cond_t  vsync_condition;	
-   pthread_mutex_t vsync_cond_mutex;
-   pthread_mutex_t pending_mutex;
-   unsigned int pageflip_pending;
+	/* For threading */
+	pthread_cond_t  vsync_condition;	
+	pthread_mutex_t vsync_cond_mutex;
+	pthread_mutex_t pending_mutex;
+	unsigned int pageflip_pending;
 
-   /* Menu */
-   bool menu_active;
+	/* Menu */
+	bool menu_active;
 
-   /* SDL expects us to keep track of the video buffer, so we need this. */
-   void *pixmem;
+	/* SDL expects us to keep track of the video buffer, so we need this. */
+	void *pixmem;
 } dispvars;
 
 /* Initialization/Query functions */
@@ -135,7 +125,7 @@ static void DISPMANX_VsyncCB(DISPMANX_UPDATE_HANDLE_T u, void *data);
 static void DISPMANX_SurfaceSetup(int width, int height, int visible_pitch, int bpp, int alpha, float aspect, 
 	int numpages, int layer, struct dispmanx_surface **surface);
 void DISPMANX_SurfaceUpdate(const void *frame, struct dispmanx_surface *surface);
-static void Dispmanx_SurfaceFree(struct dispmanx_surface *surface);
+static void Dispmanx_SurfaceFree(struct dispmanx_surface **surface);
 static void DISPMANX_BlankConsole();
 
 /* Hardware surface functions */
@@ -178,66 +168,66 @@ static void DISPMANX_InitDispmanx () {
 
 /* If no free page is available when called, wait for a page flip. */
 static struct dispmanx_page *DISPMANX_SurfaceGetFreePage(struct dispmanx_surface *surface) {
-   unsigned i;
-   struct dispmanx_page *page = NULL;
+	unsigned i;
+	struct dispmanx_page *page = NULL;
 
-   while (!page)
-   {
-      /* Try to find a free page */
-      for (i = 0; i < surface->numpages; ++i) {
-         if (!surface->pages[i].used)
-         {
-            page = (surface->pages) + i;
-            break;
-         }
-      }
+	while (!page)
+	{
+		/* Try to find a free page */
+		for (i = 0; i < surface->numpages; ++i) {
+			if (!surface->pages[i].used)
+			{
+				page = (surface->pages) + i;
+				break;
+			}
+		}
 
-      /* If no page is free at the moment,
-       * wait until a free page is freed by vsync CB. */
-      if (!page) {
-	 pthread_mutex_lock(&_dispvars->vsync_cond_mutex);
-	 pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->vsync_cond_mutex);
-	 pthread_mutex_unlock(&_dispvars->vsync_cond_mutex);
-      }
-   }
-   
-   /* We mark the choosen page as used */
-   pthread_mutex_lock(&page->page_used_mutex);
-   page->used = true;
-   pthread_mutex_unlock(&page->page_used_mutex);
+		/* If no page is free at the moment,
+		 * wait until a free page is freed by vsync CB. */
+		if (!page) {
+			pthread_mutex_lock(&_dispvars->vsync_cond_mutex);
+			pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->vsync_cond_mutex);
+			pthread_mutex_unlock(&_dispvars->vsync_cond_mutex);
+		}
+	}
 
-   return page;
+	/* We mark the choosen page as used */
+	pthread_mutex_lock(&page->page_used_mutex);
+	page->used = true;
+	pthread_mutex_unlock(&page->page_used_mutex);
+
+	return page;
 }
 
 static void DISPMANX_VsyncCB(DISPMANX_UPDATE_HANDLE_T u, void *data)
 {
-   struct dispmanx_page *page = data;
-   struct dispmanx_surface *surface = page->surface;
+	struct dispmanx_page *page = data;
+	struct dispmanx_surface *surface = page->surface;
 
-   /* Marking the page as free must be done before the signaling
-    * so when update_main continues (it won't continue until we signal) 
-    * we can chose this page as free */
-   if (surface->current_page) {
-      pthread_mutex_lock(&surface->current_page->page_used_mutex);
+	/* Marking the page as free must be done before the signaling
+	 * so when update_main continues (it won't continue until we signal) 
+	 * we can chose this page as free */
+	if (surface->current_page) {
+		pthread_mutex_lock(&surface->current_page->page_used_mutex);
 
-      /* We mark as free the page that was visible until now */
-      surface->current_page->used = false;
+		/* We mark as free the page that was visible until now */
+		surface->current_page->used = false;
 
-      pthread_mutex_unlock(&surface->current_page->page_used_mutex);
-   }
+		pthread_mutex_unlock(&surface->current_page->page_used_mutex);
+	}
 
-  /* The page on which we issued the flip that
-   * caused this callback becomes the visible one */
-   surface->current_page = page;
+	/* The page on which we issued the flip that
+	* caused this callback becomes the visible one */
+	surface->current_page = page;
 
-   /* These two things must be isolated "atomically" to avoid getting 
-    * a false positive in the pending_mutex test in update_main. */ 
-   pthread_mutex_lock(&_dispvars->pending_mutex);
-   
-   _dispvars->pageflip_pending--;	
-   pthread_cond_signal(&_dispvars->vsync_condition);
-  
-   pthread_mutex_unlock(&_dispvars->pending_mutex);
+	/* These two things must be isolated "atomically" to avoid getting 
+	 * a false positive in the pending_mutex test in update_main. */ 
+	pthread_mutex_lock(&_dispvars->pending_mutex);
+
+	_dispvars->pageflip_pending--;	
+	pthread_cond_signal(&_dispvars->vsync_condition);
+
+	pthread_mutex_unlock(&_dispvars->pending_mutex);
 }
 
 static void DISPMANX_SurfaceSetup(int width, 
@@ -250,157 +240,154 @@ static void DISPMANX_SurfaceSetup(int width,
 	int layer,
 	struct dispmanx_surface **sp)
 {
-   int i, dst_width, dst_height, dst_xpos, dst_ypos;
-   *sp = calloc(1, sizeof(struct dispmanx_surface));
-   struct dispmanx_surface *surface = *sp;
-   /* Internal frame dimensions. Pitch is total pitch including info 
-    * between scanlines */
-   surface->width = width;
-   surface->height = height;
+	int i, dst_width, dst_height, dst_xpos, dst_ypos;
+	*sp = calloc(1, sizeof(struct dispmanx_surface));
+	struct dispmanx_surface *surface = *sp;
+	/* Internal frame dimensions. Pitch is total pitch including info 
+	 * between scanlines */
+	surface->pitch = visible_pitch;
+	surface->numpages = numpages; 
+	surface->current_page = NULL; 
 
-   surface->aspect = aspect; 
-   surface->layer = layer;
-   surface->bpp = bpp;
-   surface->pitch = visible_pitch;
-   surface->numpages = numpages; 
-   surface->current_page = NULL; 
+	/* Transparency disabled */
+	surface->alpha.flags = DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS;
+	surface->alpha.opacity = alpha;
+	surface->alpha.mask = 0;
 
-   /* Transparency disabled */
-   surface->alpha.flags = DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS;
-   surface->alpha.opacity = alpha;
-   surface->alpha.mask = 0;
+	/* The "visible" width obtained from the core pitch. We blit based on 
+	 * the "visible" width, for cores with things between scanlines. */
+	int visible_width = visible_pitch / (bpp / 8);
 
-   /* The "visible" width obtained from the core pitch. We blit based on 
-    * the "visible" width, for cores with things between scanlines. */
-   int visible_width = visible_pitch / (bpp / 8);
+	/* Set pixformat depending on bpp */
+	switch (bpp){
+		case 8:
+			surface->pixformat = VC_IMAGE_8BPP;
+			break;
+		case 16:
+			surface->pixformat = VC_IMAGE_RGB565;
+			break;
+		case 32:
+			surface->pixformat = VC_IMAGE_XRGB8888;
+			break;
+		default:
+			return;
+	}
 
-   /* Set pixformat depending on bpp */
-   switch (bpp){
-      case 8:
-         surface->pixformat = VC_IMAGE_8BPP;
-         break;
-      case 16:
-         surface->pixformat = VC_IMAGE_RGB565;
-         break;
-      case 32:
-         surface->pixformat = VC_IMAGE_XRGB8888;
-         break;
-      default:
-         return;
-   } 
+	/* Allocate memory for all the pages in each surface
+	 * and initialize variables inside each page's struct. */
+	surface->pages = calloc(surface->numpages, sizeof(struct dispmanx_page));
+	for (i = 0; i < surface->numpages; i++) {
+		surface->pages[i].used = false;   
+		surface->pages[i].surface = surface;   
+		pthread_mutex_init(&surface->pages[i].page_used_mutex, NULL); 
+	}
 
-   /* Allocate memory for all the pages in each surface
-    * and initialize variables inside each page's struct. */
-   surface->pages = calloc(surface->numpages, sizeof(struct dispmanx_page));
-   for (i = 0; i < surface->numpages; i++) {
-      surface->pages[i].used = false;   
-      surface->pages[i].surface = surface;   
-      pthread_mutex_init(&surface->pages[i].page_used_mutex, NULL); 
-   }
+	dst_width  = _dispvars->dispmanx_height * aspect;	
+	dst_height = _dispvars->dispmanx_height;
 
-   dst_width  = _dispvars->dispmanx_height * aspect;	
-   dst_height = _dispvars->dispmanx_height;
-   
-   /* If we obtain a scaled image width that is bigger than the physical screen width,
-   * then we keep the physical screen width as our maximun width. */
-   if (dst_width > _dispvars->dispmanx_width) 
-      dst_width = _dispvars->dispmanx_width;
-   
-   dst_xpos = (_dispvars->dispmanx_width - dst_width) / 2;
-   dst_ypos = (_dispvars->dispmanx_height - dst_height) / 2;
+	/* If we obtain a scaled image width that is bigger than the physical screen width,
+	* then we keep the physical screen width as our maximun width. */
+	if (dst_width > _dispvars->dispmanx_width) 
+	   dst_width = _dispvars->dispmanx_width;
 
-   /* We configure the rects now. */
-   vc_dispmanx_rect_set(&surface->dst_rect, dst_xpos, dst_ypos, dst_width, dst_height);
-   vc_dispmanx_rect_set(&surface->bmp_rect, 0, 0, width, height);	
-   vc_dispmanx_rect_set(&surface->src_rect, 0, 0, width << 16, height << 16);	
+	dst_xpos = (_dispvars->dispmanx_width - dst_width) / 2;
+	dst_ypos = (_dispvars->dispmanx_height - dst_height) / 2;
 
-   for (i = 0; i < surface->numpages; i++) {
-      surface->pages[i].resource = vc_dispmanx_resource_create(surface->pixformat, 
-	    visible_width, height, &(_dispvars->vc_image_ptr));
-   }
-   /* Add element. */
-   _dispvars->update = vc_dispmanx_update_start(0);
+	/* We configure the rects now. */
+	vc_dispmanx_rect_set(&surface->dst_rect, dst_xpos, dst_ypos, dst_width, dst_height);
+	vc_dispmanx_rect_set(&surface->bmp_rect, 0, 0, width, height);	
+	vc_dispmanx_rect_set(&surface->src_rect, 0, 0, width << 16, height << 16);	
 
-   surface->element = vc_dispmanx_element_add(
-      _dispvars->update,_dispvars->display, surface->layer, 
-      &surface->dst_rect, surface->pages[0].resource, 
-      &surface->src_rect, DISPMANX_PROTECTION_NONE,
-      &surface->alpha, 0, (DISPMANX_TRANSFORM_T)0);
+	for (i = 0; i < surface->numpages; i++) {
+		surface->pages[i].resource = vc_dispmanx_resource_create(surface->pixformat, 
+			visible_width, height, &(_dispvars->vc_image_ptr));
+	}
+	/* Add element. */
+	_dispvars->update = vc_dispmanx_update_start(0);
 
-   vc_dispmanx_update_submit_sync(_dispvars->update);		
+	surface->element = vc_dispmanx_element_add(
+		_dispvars->update,_dispvars->display, layer, 
+		&surface->dst_rect, surface->pages[0].resource, 
+		&surface->src_rect, DISPMANX_PROTECTION_NONE,
+		&surface->alpha, 0, (DISPMANX_TRANSFORM_T)0);
+
+	vc_dispmanx_update_submit_sync(_dispvars->update);		
 }
 
 /* Update a given surface */
 void DISPMANX_SurfaceUpdate(const void *frame, struct dispmanx_surface *surface)
 {
-   struct dispmanx_page *page = NULL;
-   
-   /* Wait until last issued flip completes to get a free page. Also, 
-      dispmanx doesn't support issuing more than one pageflip.*/
-   pthread_mutex_lock(&_dispvars->pending_mutex);
-   if (_dispvars->pageflip_pending > 0)
-   {
-      pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->pending_mutex);
-   }
-   pthread_mutex_unlock(&_dispvars->pending_mutex);
-  
-   page = DISPMANX_SurfaceGetFreePage(surface);
- 
-   /* Frame blitting */
-   vc_dispmanx_resource_write_data(page->resource, surface->pixformat,
-      surface->pitch, (void*)frame, &(surface->bmp_rect));
-   
-   /* Issue a page flip that will be done at the next vsync. */
-   _dispvars->update = vc_dispmanx_update_start(0);
+	struct dispmanx_page *page = NULL;
 
-   vc_dispmanx_element_change_source(_dispvars->update, surface->element,
-         page->resource);
+	/* Wait until last issued flip completes to get a free page. Also, 
+	   dispmanx doesn't support issuing more than one pageflip.*/
+	pthread_mutex_lock(&_dispvars->pending_mutex);
+	if (_dispvars->pageflip_pending > 0)
+	{
+		pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->pending_mutex);
+	}
+	pthread_mutex_unlock(&_dispvars->pending_mutex);
 
-   vc_dispmanx_update_submit(_dispvars->update, DISPMANX_VsyncCB, (void*)page);
+	page = DISPMANX_SurfaceGetFreePage(surface);
 
-   pthread_mutex_lock(&_dispvars->pending_mutex);
-   _dispvars->pageflip_pending++;	
-   pthread_mutex_unlock(&_dispvars->pending_mutex);
+	/* Frame blitting */
+	vc_dispmanx_resource_write_data(page->resource, surface->pixformat,
+		surface->pitch, (void*)frame, &(surface->bmp_rect));
+
+	/* Issue a page flip that will be done at the next vsync. */
+	_dispvars->update = vc_dispmanx_update_start(0);
+
+	vc_dispmanx_element_change_source(_dispvars->update, surface->element,
+		page->resource);
+
+	vc_dispmanx_update_submit(_dispvars->update, DISPMANX_VsyncCB, (void*)page);
+
+	pthread_mutex_lock(&_dispvars->pending_mutex);
+	_dispvars->pageflip_pending++;	
+	pthread_mutex_unlock(&_dispvars->pending_mutex);
 }
 
 static void DISPMANX_BlankConsole ()
 {
-   /* Note that a 2-pixels array is needed to accomplish console blanking because with 1-pixel
-    * only the write data function doesn't work well, so when we do the only resource 
-    * change in the surface update function, we will be seeing a distorted console. */
-   uint16_t image[2] = {0x0000, 0x0000};
-   float aspect = (float)_dispvars->dispmanx_width / (float)_dispvars->dispmanx_height;   
+	/* Note that a 2-pixels array is needed to accomplish console blanking because with 1-pixel
+	 * only the write data function doesn't work well, so when we do the only resource 
+	 * change in the surface update function, we will be seeing a distorted console. */
+	uint16_t image[2] = {0x0000, 0x0000};
+	float aspect = (float)_dispvars->dispmanx_width / (float)_dispvars->dispmanx_height;   
 
-   DISPMANX_SurfaceSetup(2, 2, 4, 16, 255, aspect, 1, -1, &_dispvars->back_surface);
-   DISPMANX_SurfaceUpdate(image, _dispvars->back_surface);
+	DISPMANX_SurfaceSetup(2, 2, 4, 16, 255, aspect, 1, -1, &_dispvars->back_surface);
+	DISPMANX_SurfaceUpdate(image, _dispvars->back_surface);
 }
 
-static void Dispmanx_SurfaceFree(struct dispmanx_surface *surface)
+static void Dispmanx_SurfaceFree(struct dispmanx_surface **sp)
 {
-   int i;	
-  
-   /* What if we run into the vsync cb code after freeing the surface? 
-    * We could be trying to get non-existant lock, signal non-existant condition..
-    * So we wait for any pending flips to complete before freeing any surface. */ 
-   if (_dispvars->pageflip_pending > 0)
-   {
-      pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->pending_mutex);
-   }
-   pthread_mutex_unlock(&_dispvars->pending_mutex);
- 
-   for (i = 0; i < surface->numpages; i++) { 
-      vc_dispmanx_resource_delete(surface->pages[i].resource);
-      surface->pages[i].used = false;   
-      pthread_mutex_destroy(&surface->pages[i].page_used_mutex); 
-   }
-   
-   free(surface->pages);
-   
-   _dispvars->update = vc_dispmanx_update_start(0);
-   vc_dispmanx_element_remove(_dispvars->update, surface->element);
-   vc_dispmanx_update_submit_sync(_dispvars->update);		
+	int i;	
+	struct dispmanx_surface *surface = *sp; 
 
-   free(surface);
+	/* What if we run into the vsync cb code after freeing the surface? 
+	 * We could be trying to get non-existant lock, signal non-existant condition..
+	 * So we wait for any pending flips to complete before freeing any surface. */ 
+	pthread_mutex_lock(&_dispvars->pending_mutex);
+	if (_dispvars->pageflip_pending > 0)
+	{
+		pthread_cond_wait(&_dispvars->vsync_condition, &_dispvars->pending_mutex);
+	}
+	pthread_mutex_unlock(&_dispvars->pending_mutex);
+
+	for (i = 0; i < surface->numpages; i++) { 
+		vc_dispmanx_resource_delete(surface->pages[i].resource);
+		surface->pages[i].used = false;   
+		pthread_mutex_destroy(&surface->pages[i].page_used_mutex); 
+	}
+
+	free(surface->pages);
+
+	_dispvars->update = vc_dispmanx_update_start(0);
+	vc_dispmanx_element_remove(_dispvars->update, surface->element);
+	vc_dispmanx_update_submit_sync(_dispvars->update);		
+
+	free(surface);
+	*sp = NULL;
 }
 
 static int DISPMANX_Available(void)
@@ -501,7 +488,8 @@ static int DISPMANX_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	vformat->Gmask = 0;
 	vformat->Bmask = 0;
 
-
+	/* Just in case, it doesn't hurt. */
+	_dispvars = NULL;
 
 	/* We're done! */
 	return(0);
@@ -514,6 +502,8 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 	 * and modesetting in these cases. */
 	if ((width == 0) | (height == 0)) goto go_video_console;
 
+	/* We dp this here and NOT in VideoInit because this way all this can be skipped in case
+	 * a game or emu initializes dispmanx itself for EGL/GLES and uses SDL only for input. */
 	if (_dispvars == NULL) {
 		DISPMANX_InitDispmanx();	
 		DISPMANX_BlankConsole();
@@ -525,7 +515,7 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 	if (keep_aspect) {
 	   aspect = (float)width / (float)height;
 	} else {
-	   /* This is unnecesary but allows us to have a general case surface_setup function. */
+	   /* This is unnecesary but allows us to have a general case SurfaceSetup function. */
 	   aspect = (float)_dispvars->dispmanx_width / (float)_dispvars->dispmanx_height;
 	}
 
@@ -546,7 +536,7 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 	current->flags |= SDL_HWPALETTE;
 
         if ( _dispvars->main_surface != NULL) {
-		Dispmanx_SurfaceFree(_dispvars->main_surface);
+		Dispmanx_SurfaceFree(&_dispvars->main_surface);
 	}
 		
 	DISPMANX_SurfaceSetup(width, height, pitch, bpp, 255, aspect, 3, 0,
@@ -614,8 +604,8 @@ static void DISPMANX_VideoQuit(_THIS)
 	 * for EGL/GLES or something like that, so we don't have to free anything here.*/
 	if (_dispvars != NULL) {	
 		/* Free the dispmanx surfaces */
-		Dispmanx_SurfaceFree(_dispvars->main_surface);
-		Dispmanx_SurfaceFree(_dispvars->back_surface);
+		Dispmanx_SurfaceFree(&_dispvars->main_surface);
+		Dispmanx_SurfaceFree(&_dispvars->back_surface);
 
 		/* Destroy surface management mutexes and conditions. */
 		pthread_mutex_destroy(&_dispvars->pending_mutex);

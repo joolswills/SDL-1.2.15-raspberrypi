@@ -1256,8 +1256,8 @@ dnl Find the DISPMANX includes
 CheckDISPMANX()
 {
     AC_ARG_ENABLE(video-dispmanx,
-AC_HELP_STRING([--enable-video-dispmanx], [use DISPMANX video modes [[default=yes]]]),
-                  , enable_video_dispmanx=yes)
+AC_HELP_STRING([--enable-video-dispmanx], [use DISPMANX video modes [[default=no]]]),
+                  , enable_video_dispmanx=no)
     if test x$enable_video = xyes -a x$enable_video_dispmanx = xyes; then
         AC_MSG_CHECKING(for dispmanx support)
         DISPMANX_LDFLAGS="-L/opt/vc/lib -lbcm_host -lvcos -lvchiq_arm"

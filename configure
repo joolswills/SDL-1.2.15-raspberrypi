@@ -1690,7 +1690,7 @@ Optional Features:
   --enable-video-carbon   use Carbon/QuickDraw video driver [[default=no]]
   --enable-video-cocoa    use Cocoa/Quartz video driver [[default=yes]]
   --enable-video-fbcon    use framebuffer console video driver [[default=yes]]
-  --enable-video-dispmanx use DISPMANX video modes [[default=yes]]
+  --enable-video-dispmanx use DISPMANX video modes [[default=no]]
   --enable-video-directfb use DirectFB video driver [[default=yes]]
   --enable-video-ps2gs    use PlayStation 2 GS video driver [[default=yes]]
   --enable-video-ps3      use PlayStation 3 Cell driver [[default=yes]]
@@ -19314,7 +19314,7 @@ CheckDISPMANX()
 if test "${enable_video_dispmanx+set}" = set; then :
   enableval=$enable_video_dispmanx;
 else
-  enable_video_dispmanx=yes
+  enable_video_dispmanx=no
 fi
 
     if test x$enable_video = xyes -a x$enable_video_dispmanx = xyes; then

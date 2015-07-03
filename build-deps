@@ -1193,31 +1193,6 @@ $(objects)/SDL_fbvideo.lo: ./src/video/fbcon/SDL_fbvideo.c \
 	$(LIBTOOL) --mode=compile $(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c ./src/video/fbcon/SDL_fbvideo.c  -o $@
 
 
-$(objects)/SDL_dispmanxvideo.lo: ./src/video/dispmanx/SDL_dispmanxvideo.c \
-	./include/SDL_config.h \
-	./include/SDL_endian.h \
-	./include/SDL_error.h \
-	./include/SDL_mouse.h \
-	./include/SDL_mutex.h \
-	./include/SDL_opengl.h \
-	./include/SDL_platform.h \
-	./include/SDL_rwops.h \
-	./include/SDL_stdinc.h \
-	./include/SDL_syswm.h \
-	./include/SDL_version.h \
-	./include/SDL_video.h \
-	./include/begin_code.h \
-	./include/close_code.h \
-	./src/events/../video/../video/SDL_sysvideo.h \
-	./src/video/SDL_blit.h \
-	./src/video/SDL_pixels_c.h \
-	./src/video/fbcon/SDL_fbevents_c.h \
-	./src/video/fbcon/SDL_fbmouse_c.h \
-	./src/video/fbcon/SDL_fbvideo.h \
-
-	$(LIBTOOL) --mode=compile $(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c ./src/video/dispmanx/SDL_dispmanxvideo.c  -o $@
-
-
 $(objects)/SDL_systhread.lo: ./src/thread/pthread/SDL_systhread.c \
 	./include/SDL_config.h \
 	./include/SDL_error.h \

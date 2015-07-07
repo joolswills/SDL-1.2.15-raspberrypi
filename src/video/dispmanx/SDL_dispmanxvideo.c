@@ -18,6 +18,9 @@
 
 	Sam Lantinga
 	slouken@libsdl.org
+
+	Dispmanx driver by Manuel Alfayate Corchete
+	redwindwanderer@gmail.com
 */
 
 #include "SDL_config.h"

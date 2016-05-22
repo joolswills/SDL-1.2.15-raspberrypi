@@ -516,7 +516,14 @@ static SDL_Surface *DISPMANX_SetVideoMode(_THIS, SDL_Surface *current, int width
 	float aspect;
 
 	if (keep_aspect) {
-		aspect = (float)width / (float)height;
+		const char *user_aspect = SDL_getenv("SDL_DISPMANX_RATIO");
+		if (user_aspect != NULL) {
+			aspect = strtof(user_aspect, NULL);
+		}
+		/* only allow sensible aspect ratios */
+		if (aspect < 0.2f || aspect > 6.0f) {
+			aspect = (float)width / (float)height;
+		}
 	} else {
 		/* This is unnecesary but allows us to have a general case SurfaceSetup function. */
 		aspect = (float)_dispvars->dispmanx_width / (float)_dispvars->dispmanx_height;
